@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xmlns:task="http://www.springframework.org/schema/task"
+       xmlns:context="http://www.springframework.org/schema/context" xmlns:tx="http://www.springframework.org/schema/tx"
+       xmlns:cache="http://www.springframework.org/schema/cache"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd http://www.springframework.org/schema/context https://www.springframework.org/schema/context/spring-context.xsd http://www.springframework.org/schema/tx http://www.springframework.org/schema/tx/spring-tx.xsd http://www.springframework.org/schema/cache http://www.springframework.org/schema/cache/spring-cache.xsd">
+
+    <!--启动扫描机制，并指定扫描对应的包-->
+    <context:annotation-config></context:annotation-config>
+    <!--定义扫描装载的包-->
+    <context:component-scan base-package="com.*"></context:component-scan>
+    <!--配置数据库连接池-->
+    <bean id="dataSource" class="org.apache.commons.dbcp2.BasicDataSource">
+        <property name="driverClassName" value="com.mysql.cj.jdbc.Driver"></property>
+        <property name="url" value="jdbc:mysql://localhost/redpacket?serverTimezone=UTC&amp;useSSL=true"></property>
+        <property name="username" value="root"></property>
+        <property name="password" value="117881"></property>
+        <property name="maxIdle" value="5"></property>
+        <property name="maxWaitMillis" value="10000"></property>
+        <property name="maxTotal" value="255"></property>
+    </bean>
+    <!--集成mybatis-->
+    <bean id="sqlSessionFactory" class="org.mybatis.spring.SqlSessionFactoryBean">
+        <property name="dataSource" ref="dataSource"></property>
+        <property name="configLocation" value="classpath:mybatis-config.xml"></property>
+    </bean>
+    <!--事务管理器配置数据源事务-->
+    <bean id="transactionManager" class="org.springframework.jdbc.datasource.DataSourceTransactionManager">
+        <property name="dataSource" ref="dataSource"></property>
+    </bean>
+    <!--使用注解定义事务-->
+    <tx:annotation-driven transaction-manager="transactionManager"></tx:annotation-driven>
+    <!--采用自动扫描创建mapper bean-->
+    <bean class="org.mybatis.spring.mapper.MapperScannerConfigurer">
+        <property name="basePackage" value="com.*"></property>
+        <property name="sqlSessionFactoryBeanName" value="sqlSessionFactory"></property>
+        <property name="annotationClass" value="org.springframework.stereotype.Repository"></property>
+    </bean>
+
+    <!--配置Redis连接池-->
+    <bean id="poolConfig" class="redis.clients.jedis.JedisPoolConfig">
+        <property name="maxIdle" value="50"></property>
+        <property name="maxTotal" value="100"></property>
+        <property name="maxWaitMillis" value="3000"></property>
+    </bean>
+    <!--string序列化器-->
+    <bean id="stringRedisSerializer" class="org.springframework.data.redis.serializer.StringRedisSerializer"></bean>
+    <!--连接池设置-->
+    <bean id="connectionFactory" class="org.springframework.data.redis.connection.jedis.JedisConnectionFactory">
+        <constructor-arg name="poolConfig" ref="poolConfig"></constructor-arg>
+        <property name="password" value="117881"/>
+        <property name="port" value="6379"></property>
+        <property name="hostName" value="localhost"></property>
+    </bean>
+    <!--配置redistemplate-->
+    <bean id="redisTemplate" class="org.springframework.data.redis.core.RedisTemplate">
+        <property name="connectionFactory" ref="connectionFactory"></property>
+        <property name="defaultSerializer" ref="stringRedisSerializer"></property>
+        <property name="keySerializer" ref="stringRedisSerializer"></property>
+        <property name="valueSerializer" ref="stringRedisSerializer"></property>
+        <property name="hashKeySerializer" ref="stringRedisSerializer"></property>
+        <property name="hashValueSerializer" ref="stringRedisSerializer"></property>
+    </bean>
+    <cache:annotation-driven cache-manager="redisCacheManager"></cache:annotation-driven>
+    <!--定义缓存管理器-->
+    <bean id="redisCacheManager" class="org.springframework.data.redis.cache.RedisCacheManager">
+       <constructor-arg index="0" ref="redisTemplate"></constructor-arg>
+        <property name="defaultExpiration" value="600"></property>
+        <property name="cacheNames">
+            <list>
+                <value>redisCacheManager</value>
+            </list>
+        </property>
+    </bean>
+
+    <!--使用async注解-->
+    <task:annotation-driven executor="threadPool1"></task:annotation-driven>
+    <task:executor id="threadPool1" queue-capacity="1000" pool-size="5" keep-alive="300" rejection-policy="DISCARD"></task:executor>
+    <!-- 异步线程池 -->
+    <bean id="threadPool" class="org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor">
+    <!-- 核心线程数  -->
+    <property name="corePoolSize" value="5" />
+    <!-- 最大线程数 -->
+    <property name="maxPoolSize" value="20" />
+    <!-- 队列最大长度 >=mainExecutor.maxSize -->
+    <property name="queueCapacity" value="1000" />
+    <!-- 线程池维护线程所允许的空闲时间 -->
+    <property name="keepAliveSeconds" value="300" />
+    <!-- 线程池对拒绝任务(无线程可用)的处理策略 -->
+    <property name="rejectedExecutionHandler">
+        <bean class="java.util.concurrent.ThreadPoolExecutor$CallerRunsPolicy" />
+    </property>
+    </bean>
+</beans>
